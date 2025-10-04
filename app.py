@@ -1,4 +1,11 @@
 # app.py
+# Streamlit UI for multi-image workflow:
+# - Upload multiple images
+# - Left panel: choose which images to preview
+# - Right panel: grid preview (shows original first, then overlay after inference)
+# - Click "Run model" to run the pipeline on selected images
+# - The pipeline is loaded via inference.load_pipeline() and cached as a resource
+
 import io
 from typing import List, Dict
 import streamlit as st
@@ -8,7 +15,7 @@ from inference import load_pipeline
 st.set_page_config(page_title="Coral Monitor", layout="wide")
 st.title("🌊 Coral Monitor — YOLO + CoralScope (Demo)")
 
-# --- 状态初始化（把已上传文件和推理结果放进会话态） ---
+# --- Session state init (store uploaded files and inference outputs) ---
 if "files" not in st.session_state:
     # files: List[{"name": str, "bytes": bytes}]
     st.session_state.files: List[Dict] = []
@@ -16,7 +23,7 @@ if "outputs" not in st.session_state:
     # outputs: Dict[file_name -> overlay_png_bytes]
     st.session_state.outputs: Dict[str, bytes] = {}
 
-# --- 工具函数：通过文件名取原图/输出图 ---
+# --- Helper functions: fetch original / output image by file name ---
 def get_original_pil(name: str) -> Image.Image:
     for rec in st.session_state.files:
         if rec["name"] == name:
@@ -30,19 +37,19 @@ def get_output_pil(name: str):
 
 @st.cache_resource
 def get_pipeline():
-    # 加载你们的 YOLO + CoralScope 管线（见 inference.py）
+    # Load your YOLO + CoralScope pipeline (see inference.py)
     return load_pipeline()
 
 pipe = get_pipeline()
 
-# --- 顶部：多文件上传（支持拖拽） ---
+# --- Top: multi-file uploader (supports drag & drop) ---
 uploaded_files = st.file_uploader(
     "Upload images — drag & drop or click to select",
     type=["jpg", "jpeg", "png"],
     accept_multiple_files=True,
 )
 
-# 把本次新上传的文件并入会话态（避免重名重复加入）
+# Merge newly uploaded files into session state (avoid duplicates by name)
 if uploaded_files:
     existing = {rec["name"] for rec in st.session_state.files}
     for uf in uploaded_files:
@@ -50,7 +57,7 @@ if uploaded_files:
             data = uf.read()
             st.session_state.files.append({"name": uf.name, "bytes": data})
 
-# --- 布局：左侧列表（选择要预览的图片），右侧画廊（无边框、不固定高度） ---
+# --- Layout: left list (choose images), right gallery (no border, auto height) ---
 left, right = st.columns([0.28, 0.72], gap="large")
 
 with left:
@@ -74,32 +81,33 @@ with right:
     if not selected_names:
         st.info("Select images on the left to preview.")
     else:
-        # 网格：3 列（需要改列数就改 ncols）
+        # Grid with 3 columns (change ncols if you want 2/4/etc.)
         ncols = 3
         rows = [selected_names[i:i + ncols] for i in range(0, len(selected_names), ncols)]
         for row in rows:
             cols = st.columns(ncols, gap="small")
             for col, name in zip(cols, row):
-                # 如果已有模型输出，就显示输出；否则显示原图
+                # If we already have a model output, show it; otherwise show the original
                 out_pil = get_output_pil(name)
                 show_pil = out_pil if out_pil else get_original_pil(name)
                 with col:
                     st.image(show_pil, caption=name, use_column_width=True)
 
-# --- 底部：Run Model 按钮（对所选图片做推理，替换显示为掩膜输出） ---
+# --- Bottom: Run Model button (run inference for selected images, replace previews) ---
 run = st.button("Run model", type="primary", use_container_width=True)
 
 if run:
     if not selected_names:
         st.warning("Please select at least one image from the list on the left.")
     else:
-        # 运行模型推理（对所选图片）
+        # Run inference over the selected images
         progress = st.progress(0, text="Running model...")
         for idx, name in enumerate(selected_names, start=1):
             img = get_original_pil(name)
-            overlay_pil, _results = pipe.run(img)  # 你们的 inference.py 返回 (overlay, results)
+            # Your inference.py should return (overlay_image, results_dict)
+            overlay_pil, _results = pipe.run(img)
 
-            # 保存为 PNG 字节到会话态，供右侧画廊显示
+            # Save overlay PNG bytes into session state so the gallery updates
             buf = io.BytesIO()
             overlay_pil.save(buf, format="PNG")
             st.session_state.outputs[name] = buf.getvalue()
