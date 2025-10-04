@@ -1,0 +1,11 @@
+﻿__pycache__/
+.venv/
+.env
+*.log
+weights/
+*.pt
+*.pth
+*.onnx
+*.ckpt
+data/
+outputs/

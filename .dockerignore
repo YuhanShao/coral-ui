@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.venv/
+.env
+.git
+.gitignore
+*.pt
+*.pth
+*.onnx
+*.ckpt

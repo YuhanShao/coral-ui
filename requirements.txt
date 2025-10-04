@@ -1,0 +1,7 @@
+streamlit==1.37.1
+torch>=2.2.0
+torchvision>=0.17.0
+Pillow
+numpy
+# ultralytics           # 如果之后用 YOLOv8/YOLO11，就取消注释并在 inference.py 里导入
+# 你们的 CoralScope 相关依赖未来再加
